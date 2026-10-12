@@ -1,16 +1,12 @@
-#include <iostream>
+#include <cstdio>
 #include <vector>
 #include <unordered_map>
-#include <unordered_set>
-#include <algorithm>
-
-using namespace std;
 
 // Union-Find data structure for managing equivalence classes
 class UnionFind {
 private:
-    unordered_map<int, int> parent;
-    unordered_map<int, int> rank;
+    std::unordered_map<int, int> parent;
+    std::unordered_map<int, int> rank;
     
 public:
     int find(int x) {
@@ -49,48 +45,40 @@ public:
 };
 
 int main() {
-    ios_base::sync_with_stdio(false);
-    cin.tie(nullptr);
-    
     int t;
-    cin >> t;
+    scanf("%d", &t);
     
     while (t--) {
         int n;
-        cin >> n;
+        scanf("%d", &n);
         
-        // Store equality and inequality constraints
-        vector<pair<int, int>> equals;
-        vector<pair<int, int>> not_equals;
+        // Process equality constraints first
+        UnionFind uf;
+        
+        // Process all constraints in one pass
+        bool valid = true;
+        std::vector<std::pair<int, int>> inequalities;
         
         for (int i = 0; i < n; i++) {
             int x, y, e;
-            cin >> x >> y >> e;
+            scanf("%d %d %d", &x, &y, &e);
             
             if (e == 1) {
-                equals.push_back({x, y});
+                uf.unite(x, y);
             } else {
-                not_equals.push_back({x, y});
+                inequalities.push_back({x, y});
             }
         }
         
-        // Process equality constraints using Union-Find
-        UnionFind uf;
-        
-        for (auto& p : equals) {
-            uf.unite(p.first, p.second);
-        }
-        
-        // Check if any inequality constraint violates the equivalence classes
-        bool valid = true;
-        for (auto& p : not_equals) {
+        // Check inequality constraints
+        for (auto& p : inequalities) {
             if (uf.connected(p.first, p.second)) {
                 valid = false;
                 break;
             }
         }
         
-        cout << (valid ? "YES" : "NO") << '\n';
+        printf("%s\n", valid ? "YES" : "NO");
     }
     
     return 0;
