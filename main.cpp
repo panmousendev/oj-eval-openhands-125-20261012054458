@@ -1,21 +1,25 @@
 #include <cstdio>
 #include <vector>
+#include <algorithm>
 #include <unordered_map>
 
-// Union-Find data structure for managing equivalence classes
+// Union-Find with coordinate compression for better performance
 class UnionFind {
 private:
-    std::unordered_map<int, int> parent;
-    std::unordered_map<int, int> rank;
+    std::vector<int> parent;
+    std::vector<int> rank;
+    int n;
     
 public:
-    int find(int x) {
-        if (parent.find(x) == parent.end()) {
-            parent[x] = x;
-            rank[x] = 0;
-            return x;
+    UnionFind(int size) : n(size) {
+        parent.resize(n);
+        rank.resize(n, 0);
+        for (int i = 0; i < n; i++) {
+            parent[i] = i;
         }
-        
+    }
+    
+    int find(int x) {
         if (parent[x] != x) {
             parent[x] = find(parent[x]); // Path compression
         }
@@ -52,27 +56,51 @@ int main() {
         int n;
         scanf("%d", &n);
         
-        // Process equality constraints first
-        UnionFind uf;
-        
-        // Process all constraints in one pass
-        bool valid = true;
-        std::vector<std::pair<int, int>> inequalities;
+        // Collect all variables for coordinate compression
+        std::vector<int> variables;
+        std::vector<std::pair<int, int>> equals;
+        std::vector<std::pair<int, int>> not_equals;
         
         for (int i = 0; i < n; i++) {
             int x, y, e;
             scanf("%d %d %d", &x, &y, &e);
             
+            variables.push_back(x);
+            variables.push_back(y);
+            
             if (e == 1) {
-                uf.unite(x, y);
+                equals.push_back({x, y});
             } else {
-                inequalities.push_back({x, y});
+                not_equals.push_back({x, y});
             }
         }
         
+        // Coordinate compression
+        std::sort(variables.begin(), variables.end());
+        auto last = std::unique(variables.begin(), variables.end());
+        variables.erase(last, variables.end());
+        
+        // Create mapping from original variable to compressed index
+        std::unordered_map<int, int> comp_map;
+        for (int i = 0; i < variables.size(); i++) {
+            comp_map[variables[i]] = i;
+        }
+        
+        // Process equality constraints using Union-Find with compressed coordinates
+        UnionFind uf(variables.size());
+        
+        for (auto& p : equals) {
+            int x = comp_map[p.first];
+            int y = comp_map[p.second];
+            uf.unite(x, y);
+        }
+        
         // Check inequality constraints
-        for (auto& p : inequalities) {
-            if (uf.connected(p.first, p.second)) {
+        bool valid = true;
+        for (auto& p : not_equals) {
+            int x = comp_map[p.first];
+            int y = comp_map[p.second];
+            if (uf.connected(x, y)) {
                 valid = false;
                 break;
             }
