@@ -1,25 +1,112 @@
 #include <cstdio>
 #include <vector>
 #include <algorithm>
-#include <unordered_map>
 
-// Union-Find with coordinate compression for better performance
-class UnionFind {
+// Custom hash table for better performance than std::unordered_map
+template<typename K, typename V>
+class HashMap {
 private:
-    std::vector<int> parent;
-    std::vector<int> rank;
-    int n;
+    static constexpr int INITIAL_CAPACITY = 16;
+    static constexpr float LOAD_FACTOR = 0.75f;
     
-public:
-    UnionFind(int size) : n(size) {
-        parent.resize(n);
-        rank.resize(n, 0);
-        for (int i = 0; i < n; i++) {
-            parent[i] = i;
+    struct Entry {
+        K key;
+        V value;
+        bool occupied;
+        
+        Entry() : occupied(false) {}
+    };
+    
+    std::vector<Entry> table;
+    int size;
+    int capacity;
+    
+    int hash(const K& key) const {
+        return (key * 2654435761U) % capacity; // Fibonacci hash
+    }
+    
+    void resize() {
+        std::vector<Entry> old_table = std::move(table);
+        int old_capacity = capacity;
+        
+        capacity *= 2;
+        table.resize(capacity);
+        std::fill(table.begin(), table.end(), Entry());
+        size = 0;
+        
+        // Rehash all entries
+        for (int i = 0; i < old_capacity; i++) {
+            if (old_table[i].occupied) {
+                (*this)[old_table[i].key] = old_table[i].value;
+            }
         }
     }
     
+public:
+    HashMap() : size(0), capacity(INITIAL_CAPACITY) {
+        table.resize(capacity);
+    }
+    
+    V& operator[](const K& key) {
+        // Find or create entry
+        int i = hash(key);
+        while (table[i].occupied && table[i].key != key) {
+            i = (i + 1) % capacity; // Linear probing
+        }
+        
+        if (!table[i].occupied) {
+            table[i].key = key;
+            table[i].occupied = true;
+            size++;
+            
+            // Check load factor
+            if (size >= capacity * LOAD_FACTOR) {
+                resize();
+                // Need to re-find after resize
+                i = hash(key);
+                while (table[i].occupied && table[i].key != key) {
+                    i = (i + 1) % capacity;
+                }
+            }
+        }
+        
+        return table[i].value;
+    }
+    
+    void put(const K& key, const V& value) {
+        (*this)[key] = value;
+    }
+    
+    bool contains(const K& key) const {
+        int i = hash(key);
+        while (table[i].occupied) {
+            if (table[i].key == key) {
+                return true;
+            }
+            i = (i + 1) % capacity;
+        }
+        return false;
+    }
+    
+    int get_size() const {
+        return size;
+    }
+};
+
+// Union-Find data structure
+class UnionFind {
+private:
+    HashMap<int, int> parent;
+    HashMap<int, int> rank;
+    
+public:
     int find(int x) {
+        if (!parent.contains(x)) {
+            parent[x] = x;
+            rank[x] = 0;
+            return x;
+        }
+        
         if (parent[x] != x) {
             parent[x] = find(parent[x]); // Path compression
         }
@@ -56,51 +143,27 @@ int main() {
         int n;
         scanf("%d", &n);
         
-        // Collect all variables for coordinate compression
-        std::vector<int> variables;
-        std::vector<std::pair<int, int>> equals;
-        std::vector<std::pair<int, int>> not_equals;
+        // Process equality constraints first
+        UnionFind uf;
+        
+        // Process all constraints in one pass
+        bool valid = true;
+        std::vector<std::pair<int, int>> inequalities;
         
         for (int i = 0; i < n; i++) {
             int x, y, e;
             scanf("%d %d %d", &x, &y, &e);
             
-            variables.push_back(x);
-            variables.push_back(y);
-            
             if (e == 1) {
-                equals.push_back({x, y});
+                uf.unite(x, y);
             } else {
-                not_equals.push_back({x, y});
+                inequalities.push_back({x, y});
             }
         }
         
-        // Coordinate compression
-        std::sort(variables.begin(), variables.end());
-        auto last = std::unique(variables.begin(), variables.end());
-        variables.erase(last, variables.end());
-        
-        // Create mapping from original variable to compressed index
-        std::unordered_map<int, int> comp_map;
-        for (int i = 0; i < variables.size(); i++) {
-            comp_map[variables[i]] = i;
-        }
-        
-        // Process equality constraints using Union-Find with compressed coordinates
-        UnionFind uf(variables.size());
-        
-        for (auto& p : equals) {
-            int x = comp_map[p.first];
-            int y = comp_map[p.second];
-            uf.unite(x, y);
-        }
-        
         // Check inequality constraints
-        bool valid = true;
-        for (auto& p : not_equals) {
-            int x = comp_map[p.first];
-            int y = comp_map[p.second];
-            if (uf.connected(x, y)) {
+        for (auto& p : inequalities) {
+            if (uf.connected(p.first, p.second)) {
                 valid = false;
                 break;
             }
